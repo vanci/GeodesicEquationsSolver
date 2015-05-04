@@ -11,30 +11,34 @@ function z = GeodesicEquationsOnSphere(x, Extra)
         vm = (X(pos) - X(pre))/2;
         vr = X(pos) - X(curr);
         
-        %% compute nonzeros of metric tensor
-        gInv11 = cos(u(2))^-2;
+        %% compute metric tensor
+        gInv = zeros(2,2);
+        gInv(1,1) = cos(u(2))^-2;
+        gInv(2,2) = 1;
+        g_i = zeros(2^3,1);
         nz_idx = 1+2^2;
         g_i_nz = -2*sin(u(2))*cos(u(2));
 
         %% compute acceleration
-        r = 0*u;
+        r = zeros(dim,1);
         for i = 1:dim
             for j = 1:dim
-                C1Column = 0*u;
+                C1Column = zeros(dim,1);
                 for k = 1:dim
                     if nz_idx == (k+dim*(i-1)+dim^2*(j-1))
                         C1Column(k) = g_i_nz/2;
-                    elseif nz_idx == (k+dim*(j-1)+dim^2*(i-1))
+                    elseif nz_idx == k+dim*(j-1)+dim^2*(i-1))
                     	C1Column(k) = g_i_nz/2;
                     elseif nz_idx == (i+dim*(j-1)+dim^2*(k-1))
-                        C1Column(k) = -g_i_nz/2;
-                    end
+                    idx3 = 
+                    C1Column(k) = (g_i(idx) + g_i(idx2) - g_i(idx3)) / 2;
                 end
                 r = r + C1Column*vm(i)*vm(j);
             end
         end
+        a = gInv*r;
         
-        z(pre) = vr - vl + [gInv11*r(1); r(2)];
+        z(pre) = vr - vl + a;
         pre = curr; curr = pos; pos = pos + dim;
     end
 end

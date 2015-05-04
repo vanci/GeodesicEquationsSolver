@@ -1,8 +1,39 @@
 function testSolveBVGeodesicEquationsOnSphere()
-    caseSphere();
+    caseSphereSolution();
+    caseSphereJacobian();
 end
 
-function caseSphere()
+function caseSphereJacobian()
+    h = 2*pi/100;
+    N = ceil(2*pi/h);
+    
+    xb0 = [3*pi/2;pi/3]; xbT = [pi;0];
+    
+    maxIter = 5;
+    diff = zeros(maxIter,1);
+    res = zeros(maxIter,1);
+    tokei = zeros(2,maxIter);
+    Extra.x0 = xb0; Extra.xT = xbT; Extra.N = N;
+    u = generateInitialValue(xb0,xbT,N);
+    for k = 1:maxIter
+        tic
+        [ffd, Jfd] = GeodesicEquationsOnSphereWithFD(u,Extra);
+        tokei(1,k) = toc;
+        tic
+        [fad, Jad] = GeodesicEquationsOnSphereWithAD(u,Extra);
+        tokei(2,k) = toc;
+        diff(k) = max(max(Jfd-Jad));
+        res(k) = norm(fad);
+        assert( 0 == norm(ffd-fad) )
+        u = u - Jfd\ffd;
+    end
+    figure; subplot(2,1,1)
+    plot(diff)
+    subplot(2,1,2)
+    plot(res);
+end
+
+function caseSphereSolution()
     TOL = 1e-4;
     h = 2*pi/100;
     N = ceil(2*pi/h);
@@ -21,22 +52,6 @@ function caseSphere()
     verifySphere(Xa, 'r', TOL);
     verifySphere(Xb, 'g', TOL);
     verifySphere(Xc, 'b', TOL); hold off;
-    
-    diff = zeros(16,1);
-    Extra.x0 = xb0; Extra.xT = xbT; Extra.N = N;
-    u = generateInitialValue(xb0,xbT,N);
-    for k = 1:16
-        [ffd, Jfd] = GeodesicEquationsOnSphereWithFD(u,Extra);
-        [fad, Jad] = GeodesicEquationsOnSphereWithAD(u,Extra);
-        diff(k) = max(max(Jfd-Jad));
-        res(k) = norm(fad);
-        assert( 0 == norm(ffd-fad) )
-        u = u - Jfd\ffd;
-    end
-    figure; subplot(2,1,1)
-    plot(diff)
-    subplot(2,1,2)
-    plot(res);
 end
 
 function verifySphere(X, color, TOL)

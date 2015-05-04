@@ -1,8 +1,10 @@
 function testSolveBVGeodesicEquationsOnSphere()
-    caseSphere();
+    caseSphereSolution();
 end
 
-function caseSphere()
+
+
+function caseSphereSolution()
     TOL = 1e-4;
     h = 2*pi/100;
     N = ceil(2*pi/h);
@@ -15,22 +17,30 @@ function caseSphere()
     
     xa0 = [pi;0]; xaT = [0;0];
     [Xa, Va] = SolveBVGeodesicEquationsOnSphere(xa0, xaT, N);
-       
+    
+    close all
     sphere; hold on;
     verifySphere(Xa, 'r', TOL);
     verifySphere(Xb, 'g', TOL);
     verifySphere(Xc, 'b', TOL); hold off;
     
-    diff = zeros(N,1);
+    maxIter = 5;
+    diff = zeros(maxIter,1);
+    res = zeros(maxIter,1);
     Extra.x0 = xb0; Extra.xT = xbT; Extra.N = N;
-    u = generateInitialValue()
-    for k = 1:N
-        
+    u = generateInitialValue(xb0,xbT,N);
+    for k = 1:maxIter
         [ffd, Jfd] = GeodesicEquationsOnSphereWithFD(u,Extra);
         [fad, Jad] = GeodesicEquationsOnSphereWithAD(u,Extra);
         diff(k) = max(max(Jfd-Jad));
+        res(k) = norm(fad);
         assert( 0 == norm(ffd-fad) )
+        u = u - Jfd\ffd;
     end
+    figure; subplot(2,1,1)
+    plot(diff)
+    subplot(2,1,2)
+    plot(res);
 end
 
 function verifySphere(X, color, TOL)
