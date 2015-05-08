@@ -17,9 +17,12 @@ function caseLocalSum()
     dependency{4,2} = 1:3;
     
     [z,JTW] = JacobianTemplate(functions, X, eye(2), dependency, []);
+    [zsp, JTWsp, JPIs] = JacobianTemplateWithColoring(functions, X, eye(2), [], dependency, []);
     assert( 0 == norm( [4;4] - z ) );
     assert( 0 == norm( [1;2;1;0] - JTW(:,1) ));
     assert( 0 == norm( [0;1;2;1] - JTW(:,2) ));
+    assert( 0 == max(zsp-z) );
+    assert( 0 == max(max(JTWsp-JTW)) );
 end
 
 function y = mysum(x,Extra)
@@ -33,16 +36,23 @@ end
 
 function caseGeodesicEquationsOnSphere()
     TOL = 1e-6;
-    N = 400;
+    N = 500;
     x0 = [3*pi/2;pi/3]; xT = [pi;0];
     u0 = generateInitialValue(x0,xT,N);
  
-    Extra.dim = 2; Extra.x0 = x0; Extra.xT = xT;
+    Extra.dim = 2; Extra.x0 = x0; Extra.xT = xT; Extra.N = N;
+    Extra.JPIs = [];
+    tic;
+    [ffd, Jfd] = GeodesicEquationsOnSphereWithFD(u0,Extra);
+    toc
     tic
     [ftp, Jtp] = GeodesicEquationsOnSphereWithTemplate(u0, Extra);
     toc
     tic;
-    [ffd, Jfd] = GeodesicEquationsOnSphereWithFD(u0,Extra);
+    [fstp, Jstp, Extra.JPIs] = GeodesicEquationsOnSphereWithSparseTemplate(u0,Extra);
+    toc
+    tic;
+    [fstp, Jstp, Extra.JPIs] = GeodesicEquationsOnSphereWithSparseTemplate(u0,Extra);
     toc
     
     assert( 0 == max(ffd-ftp) )

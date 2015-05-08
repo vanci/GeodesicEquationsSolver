@@ -1,6 +1,7 @@
 function testJacobianTemplate()
     caseLocalSum();
     caseGeodesicEquationsOnSphere();
+    fprintf('test JacobianTemplate\tPASS\n');
 end
 
 function caseLocalSum()
@@ -16,10 +17,10 @@ function caseLocalSum()
     dependency{4,2} = 1:3;
     
     [z,JTW] = JacobianTemplate(functions, X, eye(2), dependency, []);
+    [zsp, JTWsp, JPIs] = JacobianTemplateWithColoring(functions, X, eye(2), [], dependency, []);
     assert( 0 == norm( [4;4] - z ) );
     assert( 0 == norm( [1;2;1;0] - JTW(:,1) ));
     assert( 0 == norm( [0;1;2;1] - JTW(:,2) ));
-    fprintf('test JacobianTemplate\tPASS\n');
 end
 
 function y = mysum(x,Extra)
@@ -32,61 +33,39 @@ function z = localSum(x,Extra)
 end
 
 function caseGeodesicEquationsOnSphere()
-    N = 6;
+    TOL = 1e-6;
+    N = 400;
     x0 = [3*pi/2;pi/3]; xT = [pi;0];
-    U = generateInitialValue(x0,xT,N);
+    u0 = generateInitialValue(x0,xT,N);
+ 
+    Extra.dim = 2; Extra.x0 = x0; Extra.xT = xT;
+    tic
+    [ftp, Jtp] = GeodesicEquationsOnSphereWithTemplate(u0, Extra);
+    toc
+    tic;
+    [ffd, Jfd] = GeodesicEquationsOnSphereWithFD(u0,Extra);
+    toc
     
-    functions = cell(N,1);
-    functions{1} = @geodesicEquationLeftBoundary;
-    functions(2:(end-1)) = {@geodesicEquation};
-    functions{end} = @geodesicEquationRightBoundary;
-    
-    dependency = cell(N,2);
-    dependency{1,1} = [1 2];
-    d = repmat( [1;2;3], N-2, 1) + reshape( repmat(0:(N-3), 3, 1), [], 1);
-    dependency(2:(end-1),1) = num2cell(reshape(d,3,[])',2);
-    dependency{end,1} = [N-1 N];
-    
+    assert( 0 == max(ffd-ftp) )
+    assert( max(max(Jfd-Jtp)) <= TOL )
 end
 
-function z = geodesicEquationLeftBoundary(x, Extra)
-    z = zeros(Extra.dim,1);
-    curr = 1:Extra.dim; pos = curr + Extra.dim;
-    u = x(curr);
-    vl = u - Extra.x0;
-    vm = (x(pos) - Extra.x0)/2;
-    vr = x(pos) - u;
-    
-    %% compute nonzeros of metric tensor
-    gInv11 = cos(u(2))^-2;
-    nz_idx = 1+2^2;
-    g_i_nz = -2*sin(u(2))*cos(u(2));
-    
-    %% compute acceleration
-    r = 0*x;
-    for i = 1:dim
-        for j = 1:dim
-            C1Column = 0*x;
-            for k = 1:dim
-                if nz_idx == (k+dim*(i-1)+dim^2*(j-1))
-                    C1Column(k) = g_i_nz/2;
-                elseif nz_idx == (k+dim*(j-1)+dim^2*(i-1))
-                    C1Column(k) = g_i_nz/2;
-                elseif nz_idx == (i+dim*(j-1)+dim^2*(k-1))
-                    C1Column(k) = -g_i_nz/2;
-                end
-            end
-            r = r + C1Column*vm(i)*vm(j);
-        end
-    end
-end
 
-function U = generateInitialValue(x0,xT,N)
+
+function u0 = generateInitialValue(x0,xT,N)
     dim = size(x0,1);
     V = repmat( (xT - x0)/(N+1), N, 1 );
     steps = reshape(repmat(1:N, dim, 1), [], 1);
-    u = repmat(x0, N, 1) + V.*steps;
-    U = reshape(u,dim,[]);
-    U = num2cell(U,1)';
+    u0 = repmat(x0, N, 1) + V.*steps;
 end
 
+function [f, J] = GeodesicEquationsOnSphereWithFD(u, Extra)
+    M = size(u,1);
+    J = zeros(M);
+    F = @(x) GeodesicEquationsOnSphere(x,Extra);
+    f = F(u);
+    for k = 1:M
+        xp = u; xp(k) = xp(k) + 1e-6;
+        J(:,k) = 1e6*(F(xp) - f);
+    end
+end

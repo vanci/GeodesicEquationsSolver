@@ -4,17 +4,18 @@ function testSolveBVGeodesicEquationsOnSphere()
 end
 
 function caseSphereJacobian()
-    N = 500;
+    N = 400;
     
     xb0 = [3*pi/2;pi/3]; xbT = [pi;0];
     dim = length(xb0);
     
     maxIter = 3;
-    diff = zeros(maxIter,4);
+    diff = zeros(maxIter,5);
     res = zeros(maxIter,1);
     tokeiNT = zeros(1, maxIter);
-    tokei = zeros(5,maxIter);
+    tokei = zeros(6,maxIter);
     Extra.x0 = xb0; Extra.xT = xbT; Extra.N = N; Extra.dim = dim;
+    Extra.JPIs = [];
     u = generateInitialValue(xb0,xbT,N);
     
     for k = 1:maxIter
@@ -26,17 +27,17 @@ function caseSphereJacobian()
         
         % forward mode
         tic
-%        [ffm, Jfm] = GeodesicEquationsOnSphereWithForwardModeAD(u,Extra);
+        [ffm, Jfm] = GeodesicEquationsOnSphereWithForwardModeAD(u,Extra);
         tokei(2,k) = toc;
         
         % reverse mode
         tic
-%        [frm, Jrm] = GeodesicEquationsOnSphereWithReverseModeAD(u,Extra);
+        [frm, Jrm] = GeodesicEquationsOnSphereWithReverseModeAD(u,Extra);
         tokei(3,k) = toc;
         
         % bi-coloring sparse mode
         tic
-        [fsp, Jsp, Extra.SPJ] = GeodesicEquationsOnSphereWithSparseAD(u, Extra);
+        [fsp, Jsp, Extra.JPI] = GeodesicEquationsOnSphereWithSparseAD(u, Extra);
         tokei(4,k) = toc;
         
         % template mode
@@ -44,29 +45,39 @@ function caseSphereJacobian()
         [ftp, Jtp] = GeodesicEquationsOnSphereWithTemplate(u, Extra);
         tokei(5,k) = toc;
         
-%        diff(k,1) = max(max(Jfd-Jfm));
-%        diff(k,2) = max(max(Jfd-Jrm));
+        % sparse template mode
+        tic
+        [fstp, Jstp] = GeodesicEquationsOnSphereWithSparseTemplate(u, Extra);
+        tokei(6,k) = toc;
+        
+        
+        diff(k,1) = max(max(Jfd-Jfm));
+        diff(k,2) = max(max(Jfd-Jrm));
         diff(k,3) = max(max(Jfd-Jsp));
         diff(k,4) = max(max(Jfd-Jtp));
+        diff(k,5) = max(max(Jfd-Jstp));
         res(k) = norm(ffd);
-%        assert( 0 == norm(ffd-ffm) )
-%        assert( 0 == norm(ffd-frm) )
+        assert( 0 == norm(ffd-ffm) )
+        assert( 0 == norm(ffd-frm) )
         assert( 0 == norm(ffd-fsp) )
         assert( 0 == norm(ffd-ftp) )
+        assert( 0 == norm(ffd-fstp) )
         % Newton step
         tic;
         u = u - Jfd\ffd;
         tokeiNT(k) = toc;
     end
-    figure; subplot(5,1,1)
+    figure; subplot(6,1,1)
     plot(diff(:,1));  title('difference between FD and Forward Mode')
-    subplot(5,1,2)
+    subplot(6,1,2)
     plot(diff(:,2));  title('difference between FD and Reverse Mode')
-    subplot(5,1,3);
+    subplot(6,1,3);
     plot(diff(:,3));  title('difference between FD and Bi-Coloring')
-    subplot(5,1,4);
+    subplot(6,1,4);
     plot(diff(:,4));  title('difference between FD and Template Mode')
-    subplot(5,1,5);
+    subplot(6,1,5);
+    plot(diff(:,5));  title('difference between FD and Sparse Template Mode')
+    subplot(6,1,6);
     plot(res);        title('residual v.s. num. of newton steps');
     
     tokei
@@ -135,14 +146,12 @@ function [f, J] = GeodesicEquationsOnSphereWithForwardModeAD(u, Extra)
     [f, J] = feval(AD_fun, u, Extra, options);
 end
 
-function [f, J, SPJ] = GeodesicEquationsOnSphereWithSparseAD(u, Extra)
+function [f, J, JPI] = GeodesicEquationsOnSphereWithSparseAD(u, Extra)
     M = size(u,1);
-    if( (~isempty(Extra)) && isfield(Extra,'SPJ') )
-        [JPI, SPJ] = getjpi(@GeodesicEquationsOnSphere, M, M, ...
-                        Extra, 'd', Extra.SPJ);
+    if( isempty(Extra) || ~isfield(Extra,'JPI') )
+        [JPI, ~] = getjpi(@GeodesicEquationsOnSphere, M, M, Extra, 'd');
     else
-        [JPI, SPJ] = getjpi(@GeodesicEquationsOnSphere, M, M, ...
-                        Extra, 'd');
+        JPI = Extra.JPI;
     end
     [f, J] = evalj(@GeodesicEquationsOnSphere, u, Extra, M, JPI);
 end
