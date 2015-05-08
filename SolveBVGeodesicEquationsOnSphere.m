@@ -13,12 +13,6 @@ function [X, V] = SolveBVGeodesicEquationsOnSphere( x0, xT, N)
     V = 0;
 end
 
-function [r, J] = finiteDifferenceEquationsWithAD(u, Extra)
-    AD_fun = ADfun(@finiteDifferenceEquations,2*Extra.N);
-    options = setopt('revprod',eye(2*Extra.N));
-    [r, J] = feval(AD_fun, u, Extra, options);
-end
-
 function u0 = generateInitialValue(x0,xT,N)
     dim = size(x0,1);
     V = repmat( (xT - x0)/(N+1), N, 1 );

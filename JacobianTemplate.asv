@@ -30,7 +30,7 @@ assert( size(W,1) == size(z,1), 'output dimension must equal that of the dual ve
 
 idx_X = cell(length(X),1);  tail = 0;
 for n = 1:length(X)
-    idx_X{n} = (tail+1):(tail+length(X{n}));
+    idx_X(n) = (tail+1):(tail+length(X{n}));
     tail = tail + length(X{n});
 end
 
@@ -46,11 +46,9 @@ for n = N_funs:-1:1
         w = w';
     end
     
-    idx = reshape(cell2mat(idx_X(dependency{n,1}))',1,[]);
-    nx = length(idx);
-    if 0 ~= nx
-        JTW(idx,:) = JTW(idx,:) + w(1:nx,:);
-    end
+    idx = cell2matidx_X(dependency{n,1})
+    nx = length(dependency{n,1});
+    JTW(,:) = JTW(dependency{n,1},:) + w(1:nx,:);
 
     head = nx + 1;
     for k = dependency{n,2}

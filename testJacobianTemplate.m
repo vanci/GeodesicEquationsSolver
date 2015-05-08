@@ -1,5 +1,7 @@
 function testJacobianTemplate()
     caseLocalSum();
+    caseGeodesicEquationsOnSphere();
+    fprintf('test JacobianTemplate\tPASS\n');
 end
 
 function caseLocalSum()
@@ -18,7 +20,6 @@ function caseLocalSum()
     assert( 0 == norm( [4;4] - z ) );
     assert( 0 == norm( [1;2;1;0] - JTW(:,1) ));
     assert( 0 == norm( [0;1;2;1] - JTW(:,2) ));
-    fprintf('test JacobianTemplate\tPASS\n');
 end
 
 function y = mysum(x,Extra)
@@ -30,17 +31,40 @@ function z = localSum(x,Extra)
     z = [mysum(x(1:2)); mysum(x(2:3))];
 end
 
-function c2 = getChristoffelSymbols(x, Extra)
+function caseGeodesicEquationsOnSphere()
+    TOL = 1e-6;
+    N = 400;
+    x0 = [3*pi/2;pi/3]; xT = [pi;0];
+    u0 = generateInitialValue(x0,xT,N);
+ 
+    Extra.dim = 2; Extra.x0 = x0; Extra.xT = xT;
+    tic
+    [ftp, Jtp] = GeodesicEquationsOnSphereWithTemplate(u0, Extra);
+    toc
+    tic;
+    [ffd, Jfd] = GeodesicEquationsOnSphereWithFD(u0,Extra);
+    toc
+    
+    assert( 0 == max(ffd-ftp) )
+    assert( max(max(Jfd-Jtp)) <= TOL )
 end
 
-function g = metricSphere(u,Extra)
-    g = zeros(2,2);
-    g(1,1) = cos(u(2))^2;
-    g(2,2) = 1;
+
+
+function u0 = generateInitialValue(x0,xT,N)
+    dim = size(x0,1);
+    V = repmat( (xT - x0)/(N+1), N, 1 );
+    steps = reshape(repmat(1:N, dim, 1), [], 1);
+    u0 = repmat(x0, N, 1) + V.*steps;
 end
 
-function g_i = metricSphere_i(u,Extra)
-    g_i = zeros(2,2,2);
-    g_i(2,1,1) = -2*sin(u(2))*cos(u(2));
+function [f, J] = GeodesicEquationsOnSphereWithFD(u, Extra)
+    M = size(u,1);
+    J = zeros(M);
+    F = @(x) GeodesicEquationsOnSphere(x,Extra);
+    f = F(u);
+    for k = 1:M
+        xp = u; xp(k) = xp(k) + 1e-6;
+        J(:,k) = 1e6*(F(xp) - f);
+    end
 end
-
