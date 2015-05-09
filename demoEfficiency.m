@@ -1,51 +1,77 @@
-function testSolveBVGeodesicEquationsOnSphere()
-    %caseSphereSolution();
-    caseSphereJacobian();
+function demoEfficiency()
+%% this script compare efficiency of different ways of computing Jacobian
+    for N = 500:500:5000
+        caseSphereJacobian(N);
+    end
 end
 
-function caseSphereJacobian()
-    N = 100;
-    
-    xb0 = [pi/2;pi/3]; xbT = [3*pi/2;-pi/3];
-    dim = length(xb0);
+%% caseSphereJacobian compute Jacobian matrix of geodesic equations on sphere
+%  N is the number of nodes
+function caseSphereJacobian(N)
+    x0 = [pi/2;pi/3]; xT = [3*pi/2;-pi/3];
+    dim = length(x0);
     
     maxIter = 3;
     diff = zeros(maxIter,5);
     res = zeros(maxIter,1);
     tokeiNT = zeros(1, maxIter);
     tokei = zeros(6,maxIter);
-    Extra.x0 = xb0; Extra.xT = xbT; Extra.N = N; Extra.dim = dim;
+    Extra.x0 = x0; Extra.xT = xT; Extra.N = N; Extra.dim = dim;
     Extra.JPIs = [];
-    u = generateInitialValue(xb0,xbT,N);
+    u = generateInitialValue(x0,xT,N);
     
     for k = 1:maxIter
         
         % finite difference
+        profile -memory on
+        [ffd, Jfd] = GeodesicEquationsOnSphereWithFD(u,Extra);
+        profreport
+        profsave(profile('info'),sprintf('SphereWithFD\\N_%d_iter_%d',N,k))
         tic
         [ffd, Jfd] = GeodesicEquationsOnSphereWithFD(u,Extra);
         tokei(1,k) = toc;
-        
+
         % forward mode
+        profile -memory on
+        [ffm, Jfm] = GeodesicEquationsOnSphereWithForwardModeAD(u,Extra);
+        profreport
+        profsave(profile('info'),sprintf('SphereWithFM\\N_%d_iter_%d',N,k))
         tic
         [ffm, Jfm] = GeodesicEquationsOnSphereWithForwardModeAD(u,Extra);
         tokei(2,k) = toc;
         
         % reverse mode
+        profile -memory on
+        [frm, Jrm] = GeodesicEquationsOnSphereWithReverseModeAD(u,Extra);
+        profreport
+        profsave(profile('info'),sprintf('SphereWithRM\\N_%d_iter_%d',N,k))
         tic
         [frm, Jrm] = GeodesicEquationsOnSphereWithReverseModeAD(u,Extra);
         tokei(3,k) = toc;
         
         % bi-coloring sparse mode
+        profile -memory on
+        [fsp, Jsp, Extra.JPI] = GeodesicEquationsOnSphereWithSparseAD(u, Extra);
+        profreport
+        profsave(profile('info'),sprintf('SphereWithSAD\\N_%d_iter_%d',N,k))
         tic
         [fsp, Jsp, Extra.JPI] = GeodesicEquationsOnSphereWithSparseAD(u, Extra);
         tokei(4,k) = toc;
         
         % template mode
+        profile -memory on
+        [ftp, Jtp] = GeodesicEquationsOnSphereWithTemplate(u, Extra);
+        profreport
+        profsave(profile('info'),sprintf('SphereWithTP\\N_%d_iter_%d',N,k))
         tic
         [ftp, Jtp] = GeodesicEquationsOnSphereWithTemplate(u, Extra);
         tokei(5,k) = toc;
         
         % sparse template mode
+        profile -memory on
+        [fstp, Jstp] = GeodesicEquationsOnSphereWithSparseTemplate(u, Extra);
+        profreport
+        profsave(profile('info'),sprintf('SphereWithSTP\\N_%d_iter_%d',N,k))
         tic
         [fstp, Jstp] = GeodesicEquationsOnSphereWithSparseTemplate(u, Extra);
         tokei(6,k) = toc;
@@ -67,8 +93,6 @@ function caseSphereJacobian()
         u = u - Jfd\ffd;
         tokeiNT(k) = toc;
     end
-    sphere; hold on;
-    verifySphere(reshape(u,2,[]), 'r', Inf); hold off
     
     figure; subplot(6,1,1)
     plot(diff(:,1));  title('difference between FD and Forward Mode')
@@ -83,44 +107,10 @@ function caseSphereJacobian()
     subplot(6,1,6);
     plot(res);        title('residual v.s. num. of newton steps');
     
+    filename = sprintf('tokei_N_%d.mat',N);
+    save( filename, 'tokei', 'tokeiNT' );
     tokei
     tokeiNT
-end
-
-function caseSphereSolution()
-    TOL = 1e-4;
-    h = 2*pi/100;
-    N = ceil(2*pi/h);
-
-    xb0 = [3*pi/2;pi/3]; xbT = [pi;0];
-    [Xb, Vb] = SolveBVGeodesicEquationsOnSphere(xb0, xbT, N);
-    
-    xc0 = [pi;0]; xcT = [pi/2;-pi/3];
-    [Xc, Vc] = SolveBVGeodesicEquationsOnSphere(xc0, xcT, N);
-    
-    xa0 = [pi;0]; xaT = [0;0];
-    [Xa, Va] = SolveBVGeodesicEquationsOnSphere(xa0, xaT, N);
-    
-    close all
-    sphere; hold on;
-    verifySphere(Xa, 'r', TOL);
-    verifySphere(Xb, 'g', TOL);
-    verifySphere(Xc, 'b', TOL); hold off;
-end
-
-function verifySphere(X, color, TOL)
-    x = cos(X(1,:)).*cos(X(2,:));
-    y = sin(X(1,:)).*cos(X(2,:));
-    z = sin(X(2,:));
-    plot3(x,y,z,color,'LineWidth',2);
-    Y = [x;y;z];
-    N = size(Y,2);
-    % any three points on the great circle should lie in the same plane
-    % with the origin
-    U = Y(:,[1,ceil(N/5),ceil(3*N/4)]);
-    Z = cross(U(:,1),U(:,2));
-    p = dot(Z,U(:,3));
-    assert( abs(p) < TOL, num2str(abs(p)));
 end
 
 function [f, J] = GeodesicEquationsOnSphereWithFD(u, Extra)
