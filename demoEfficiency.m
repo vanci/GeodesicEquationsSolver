@@ -1,8 +1,32 @@
 function demoEfficiency()
 %% this script compare efficiency of different ways of computing Jacobian
-    for N = 500:500:5000
-        caseSphereJacobian(N);
+    caseNewtonMethod(2000);
+    %for N = 1000:500:5000
+    %    caseSphereJacobian(N);
+    %end
+end
+
+function caseNewtonMethod(N)
+    x0 = [pi/2;pi/3]; xT = [3*pi/2;-pi/3];
+    dim = length(x0);
+
+    Extra.x0 = x0; Extra.xT = xT; Extra.N = N; Extra.dim = dim;
+    Extra.JPIs = [];
+    u0 = generateInitialValue(x0,xT,N);
+    
+    tic
+    F = @(x) GeodesicEquationsOnSphere(x,Extra);
+    [u1, r1] = fsolve(F,u0);
+    tokeiFSolve = toc
+    
+    r2 = r1;
+    u2 = u0;
+    tic
+    while norm(r2) >= norm(r1)
+        [r2, J, Extra.JPI] = GeodesicEquationsOnSphereWithSparseAD(u2, Extra);
+        u2 = u2 - J\r2;
     end
+    tokeiSADSolve = toc
 end
 
 %% caseSphereJacobian compute Jacobian matrix of geodesic equations on sphere
@@ -41,13 +65,13 @@ function caseSphereJacobian(N)
         tokei(2,k) = toc;
         
         % reverse mode
-        profile -memory on
-        [frm, Jrm] = GeodesicEquationsOnSphereWithReverseModeAD(u,Extra);
-        profreport
-        profsave(profile('info'),sprintf('SphereWithRM\\N_%d_iter_%d',N,k))
-        tic
-        [frm, Jrm] = GeodesicEquationsOnSphereWithReverseModeAD(u,Extra);
-        tokei(3,k) = toc;
+%         profile -memory on
+%         [frm, Jrm] = GeodesicEquationsOnSphereWithReverseModeAD(u,Extra);
+%         profreport
+%         profsave(profile('info'),sprintf('SphereWithRM\\N_%d_iter_%d',N,k))
+%         tic
+%         [frm, Jrm] = GeodesicEquationsOnSphereWithReverseModeAD(u,Extra);
+%         tokei(3,k) = toc;
         
         % bi-coloring sparse mode
         profile -memory on
@@ -78,13 +102,13 @@ function caseSphereJacobian(N)
         
         
         diff(k,1) = max(max(Jfd-Jfm));
-        diff(k,2) = max(max(Jfd-Jrm));
+%        diff(k,2) = max(max(Jfd-Jrm));
         diff(k,3) = max(max(Jfd-Jsp));
         diff(k,4) = max(max(Jfd-Jtp));
         diff(k,5) = max(max(Jfd-Jstp));
         res(k) = norm(ffd);
         assert( 0 == norm(ffd-ffm) )
-        assert( 0 == norm(ffd-frm) )
+%        assert( 0 == norm(ffd-frm) )
         assert( 0 == norm(ffd-fsp) )
         assert( 0 == norm(ffd-ftp) )
         assert( 0 == norm(ffd-fstp) )

@@ -1,14 +1,16 @@
 function [z, JTW, JPIs] = JacobianTemplateWithColoring(functions, X, W, JPIs, dependency, Extra)
-% JacobianTemplate applies multi-level reverse mode to get Jacobian
-% efficiently
+% JacobianTemplateWithColoring applies multi-level reverse mode and bi-coloring AD 
+% to get Jacobian efficiently
 %
 % functions - column cell array of function names
 % X - column cell array of the initial inputs
+% W - columns of dual vectors; number of rows is equal to output dimension
+% JPIs - coloring information for each subroutine
 % dependency - N-by-2 cell matrix, first column specifies dependency on X
 %                               second column specifies dependency on Y
 % Extra - extra parameters to define the computation
 % z - result of the computation
-% J - Jacobian matrix
+% JTW - transposed Jacobian matrix times W
 N_funs = size(functions,1);
 assert( 1 == size(functions,2), 'functions must be a column cell of strings');
 assert( N_funs == size(dependency,1), 'dependency of every function must be specified');
